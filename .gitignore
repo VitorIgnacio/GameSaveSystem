@@ -1,0 +1,19 @@
+# Build outputs
+*.exe
+*.o
+*.obj
+
+# Save files (keep directory but ignore contents)
+saves/*.sav
+test_saves/
+test_saves_empty/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
