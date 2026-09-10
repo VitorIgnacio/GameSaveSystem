@@ -25,7 +25,7 @@ A C++17 game save system with a dependency-free core library and a playable 2D d
 
 ## Demo
 
-The repository does not include a prebuilt executable. Build the visual demo using the instructions below, then run the generated executable from the repository root.
+The repository does not include prebuilt executables. A ready-to-run Windows build is available in the GitHub Releases section. To build the visual demo from source, follow the instructions below and run the generated executable from the repository root.
 
 The demo starts with a title screen. Select **New Game** to enter the arena.
 
