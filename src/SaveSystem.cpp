@@ -3,6 +3,8 @@
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
+#include <cmath>
+#include <cctype>
 
 namespace GameSave {
 
@@ -86,17 +88,31 @@ SaveError SaveSystem::save(int slot, const GameState& state) {
     GameState saveState = state;
     saveState.saveTime = std::chrono::system_clock::now();
 
-    file << "version=1\n";
+    file << "version=2\n";
     file << "playerName=" << escapeString(saveState.playerName) << "\n";
     file << "level=" << saveState.level << "\n";
-    file << "health=" << saveState.health << "\n";
-    file << "mana=" << saveState.mana << "\n";
     file << "experience=" << saveState.experience << "\n";
+    file << "experienceToNextLevel=" << saveState.experienceToNextLevel << "\n";
+    file << "health=" << saveState.health << "\n";
+    file << "maxHealth=" << saveState.maxHealth << "\n";
+    file << "mana=" << saveState.mana << "\n";
+    file << "maxMana=" << saveState.maxMana << "\n";
     file << "coins=" << saveState.coins << "\n";
     file << "positionX=" << saveState.positionX << "\n";
     file << "positionY=" << saveState.positionY << "\n";
-    file << "positionZ=" << saveState.positionZ << "\n";
+    file << "currentMap=" << escapeString(saveState.currentMap) << "\n";
     file << "playtime=" << saveState.playtime.count() << "\n";
+    file << "collectibleCount=" << saveState.collectibles.size() << "\n";
+    for (size_t i = 0; i < saveState.collectibles.size(); ++i) {
+        const CollectibleState& col = saveState.collectibles[i];
+        file << "collectible" << i << "Type=" << col.type << "\n";
+        file << "collectible" << i << "Value=" << col.value << "\n";
+        file << "collectible" << i << "Active=" << (col.active ? 1 : 0) << "\n";
+        file << "collectible" << i << "PositionX=" << col.positionX << "\n";
+        file << "collectible" << i << "PositionY=" << col.positionY << "\n";
+        file << "collectible" << i << "BobOffset=" << col.bobOffset << "\n";
+        file << "collectible" << i << "BobSpeed=" << col.bobSpeed << "\n";
+    }
     file << "saveTime=" << formatTimePoint(saveState.saveTime) << "\n";
 
     if (!file) {
@@ -120,6 +136,7 @@ SaveError SaveSystem::load(int slot, GameState& state) const {
 
     std::string line;
     std::string versionStr;
+    int collectibleCount = -1;
     GameState loadedState;
 
     while (std::getline(file, line)) {
@@ -138,22 +155,78 @@ SaveError SaveSystem::load(int slot, GameState& state) const {
                 loadedState.playerName = unescapeString(value);
             } else if (key == "level") {
                 loadedState.level = std::stoi(value);
-            } else if (key == "health") {
-                loadedState.health = std::stoi(value);
-            } else if (key == "mana") {
-                loadedState.mana = std::stoi(value);
             } else if (key == "experience") {
                 loadedState.experience = std::stoi(value);
+            } else if (key == "experienceToNextLevel") {
+                loadedState.experienceToNextLevel = std::stoi(value);
+            } else if (key == "health") {
+                loadedState.health = std::stoi(value);
+            } else if (key == "maxHealth") {
+                loadedState.maxHealth = std::stoi(value);
+            } else if (key == "mana") {
+                loadedState.mana = std::stoi(value);
+            } else if (key == "maxMana") {
+                loadedState.maxMana = std::stoi(value);
             } else if (key == "coins") {
                 loadedState.coins = std::stoi(value);
             } else if (key == "positionX") {
                 loadedState.positionX = std::stof(value);
             } else if (key == "positionY") {
                 loadedState.positionY = std::stof(value);
-            } else if (key == "positionZ") {
-                loadedState.positionZ = std::stof(value);
+            } else if (key == "currentMap") {
+                loadedState.currentMap = unescapeString(value);
             } else if (key == "playtime") {
                 loadedState.playtime = std::chrono::seconds(std::stoll(value));
+            } else if (key == "collectibleCount") {
+                collectibleCount = std::stoi(value);
+                if (collectibleCount < 0 || collectibleCount > 1000) {
+                    return SaveError::CorruptedData;
+                }
+                loadedState.collectibles.resize(static_cast<size_t>(collectibleCount));
+                loadedState.collectibleDataAvailable = true;
+            } else if (key.rfind("collectible", 0) == 0) {
+                if (collectibleCount < 0) {
+                    return SaveError::CorruptedData;
+                }
+                size_t separator = std::string::npos;
+                for (size_t j = 11; j < key.size(); ++j) {
+                    if (!std::isdigit(static_cast<unsigned char>(key[j]))) {
+                        separator = j;
+                        break;
+                    }
+                }
+                if (separator == std::string::npos) {
+                    return SaveError::CorruptedData;
+                }
+                int index = std::stoi(key.substr(11, separator - 11));
+                if (index < 0 || index >= collectibleCount) {
+                    return SaveError::CorruptedData;
+                }
+                std::string field = key.substr(separator);
+                CollectibleState& col = loadedState.collectibles[static_cast<size_t>(index)];
+                if (field == "Type") {
+                    col.type = std::stoi(value);
+                } else if (field == "Value") {
+                    col.value = std::stoi(value);
+                } else if (field == "Active") {
+                    if (value == "1") {
+                        col.active = true;
+                    } else if (value == "0") {
+                        col.active = false;
+                    } else {
+                        return SaveError::CorruptedData;
+                    }
+                } else if (field == "PositionX") {
+                    col.positionX = std::stof(value);
+                } else if (field == "PositionY") {
+                    col.positionY = std::stof(value);
+                } else if (field == "BobOffset") {
+                    col.bobOffset = std::stof(value);
+                } else if (field == "BobSpeed") {
+                    col.bobSpeed = std::stof(value);
+                } else {
+                    return SaveError::CorruptedData;
+                }
             } else if (key == "saveTime") {
                 loadedState.saveTime = parseTimePoint(value);
             }
@@ -162,8 +235,29 @@ SaveError SaveSystem::load(int slot, GameState& state) const {
         }
     }
 
-    if (versionStr != "1") {
+    if (versionStr.empty()) {
         return SaveError::InvalidFormat;
+    }
+    if (versionStr != "1" && versionStr != "2") {
+        return SaveError::InvalidFormat;
+    }
+
+    if (versionStr == "2" && collectibleCount < 0) {
+        return SaveError::CorruptedData;
+    }
+
+    if (loadedState.level < 1 || loadedState.experience < 0 || loadedState.experienceToNextLevel <= 0 ||
+        loadedState.health < 0 || loadedState.maxHealth <= 0 || loadedState.mana < 0 || loadedState.maxMana <= 0 ||
+        loadedState.coins < 0 || !std::isfinite(loadedState.positionX) || !std::isfinite(loadedState.positionY)) {
+        return SaveError::CorruptedData;
+    }
+
+    for (const auto& col : loadedState.collectibles) {
+        if (col.type < 0 || col.type > 3 || col.value <= 0 || col.bobSpeed < 0.0f ||
+            !std::isfinite(col.positionX) || !std::isfinite(col.positionY) ||
+            !std::isfinite(col.bobOffset) || !std::isfinite(col.bobSpeed)) {
+            return SaveError::CorruptedData;
+        }
     }
 
     state = loadedState;

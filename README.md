@@ -1,174 +1,172 @@
 # Game Save System
 
-A lightweight, engine-agnostic game save system library written in modern C++17.
-
-## Objective
-
-Create a portable, dependency-free save system that demonstrates professional C++ practices including RAII, proper error handling, serialization, and clean architecture.
+A C++17 game save system with a dependency-free core library and a playable 2D demonstration built with raylib. The project separates persistence from gameplay so the save system can be tested and reused independently, while the demo shows player progression, collectibles, camera follow, and restoring a complete saved session.
 
 ## Features
 
-- **Create/Load/Delete saves** with multiple slots (1-99)
-- **List existing saves** with metadata (player name, level, timestamp)
-- **Check if save exists** without loading
-- **Human-readable text format** for save files
-- **String escaping** for special characters in player names
-- **Comprehensive error handling** via `enum class SaveError`
-- **Cross-platform** using `std::filesystem`
-- **No external dependencies** - pure C++17 standard library
+- Save, load, list, check, and delete save slots
+- Multiple slots using `slot_<number>.sav` files
+- Human-readable, text-based serialization
+- Save format versioning with validation for versions 1 and 2
+- String escaping for names and map data
+- Atomic state replacement after successful deserialization
+- Typed error reporting through `SaveError`
+- Metadata listing with player name, level, slot, and timestamp
+- Persistent gameplay state:
+  - Player position, level, XP, HP, and mana
+  - Coins and play time
+  - Current map and save timestamp
+  - Collectible position, type, value, animation state, and collection state
+- Deterministic character scaling derived from level
+- Smooth level-up growth animation
+- Camera-following demo arena
+- Quick Save and Quick Load
+- Standard-library test runner for persistence behavior
 
-## Architecture
+## Demo
 
-```
-GameSaveSystem/
-├── include/
-│   └── SaveSystem.hpp      # Public API
-├── src/
-│   ├── SaveSystem.cpp      # Implementation
-│   └── main.cpp            # CLI demo
-├── tests/
-│   └── test_runner.cpp     # Unit tests
-├── saves/                  # Default save directory
-├── README.md
-└── .gitignore
-```
+The repository does not include a prebuilt executable. Build the visual demo using the instructions below, then run the generated executable from the repository root.
 
-### Core Types
+The demo starts with a title screen. Select **New Game** to enter the arena.
 
-- **`GameState`** - Aggregates all player data (name, level, health, mana, XP, coins, position, playtime, save timestamp)
-- **`SaveInfo`** - Metadata for listing saves (slot, player name, level, save time, file path)
-- **`SaveError`** - Error enumeration: `None`, `SlotNotFound`, `InvalidSlot`, `IOError`, `CorruptedData`, `InvalidFormat`
-- **`SaveSystem`** - Main class managing saves in a directory
+### Controls
+
+| Input | Action |
+|---|---|
+| `WASD` or arrow keys | Move |
+| `H` | Reduce HP by 10 |
+| `J` | Restore HP by 10 |
+| `M` | Reduce mana by 10 |
+| `N` | Restore mana by 10 |
+| `Esc` | Open or return from the pause menu |
+| `F5` | Quick Save |
+| `F9` | Quick Load from the most recently loaded slot |
+
+The pause menu provides five save slots, five load slots, settings for the quick-save slot, and a return to the main menu.
 
 ## Requirements
 
-- C++17 compatible compiler (g++/MinGW-w64 tested)
-- No external libraries required
+- A C++17-compatible compiler
+- C++ standard library support for `<filesystem>`
+- raylib 6.0 or a compatible raylib release for the visual demo
+- On Windows with MinGW, the raylib import library and these system libraries:
+  - `-lopengl32`
+  - `-lgdi32`
+  - `-lwinmm`
 
-## Compilation
+The core persistence library uses only the C++17 standard library. The visual demo requires raylib headers and libraries.
 
-```bash
-# Main application
-g++ -std=c++17 -Wall -Wextra -Wpedantic src/*.cpp -Iinclude -o GameSave.exe
+## Project Structure
 
-# Tests
+```text
+GameSaveSystem/
+├── include/
+│   ├── Game.hpp
+│   ├── GameState.hpp
+│   ├── SaveSystem.hpp
+│   └── UI.hpp
+├── src/
+│   ├── Game.cpp
+│   ├── main.cpp
+│   ├── SaveSystem.cpp
+│   └── UI.cpp
+├── tests/
+│   └── test_runner.cpp
+├── assets/
+├── saves/
+├── .gitignore
+├── README.md
+└── docs/
+    └── architecture.md
+```
+
+`assets/` is retained for future project assets; the current demo draws its scene procedurally and does not require external media files. `saves/` is created at runtime and local save files are ignored by Git.
+
+## Architecture
+
+The project has three main layers:
+
+1. **Persistence layer**
+   - `GameState` defines the serializable state.
+   - `SaveSystem` owns slot paths and handles serialization, deserialization, validation, metadata, and errors.
+2. **Gameplay layer**
+   - `Game` owns player state, collectibles, input, collisions, progression, camera behavior, and save/load orchestration.
+3. **Presentation layer**
+   - `UI` owns menus, buttons, the HUD, and status feedback.
+   - `main.cpp` owns the raylib window, frame loop, state machine, and rendering order.
+
+The core save API does not depend on raylib or the gameplay classes. This keeps persistence independently testable.
+
+## Build
+
+The commands below use a MinGW-compatible `g++`. Adjust the raylib include and library directories to match the installation on your machine.
+
+### Visual demo
+
+From the repository root:
+
+```powershell
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Iinclude -I"<RAYLIB_INCLUDE_DIR>" src/*.cpp -L"<RAYLIB_LIB_DIR>" -lraylib -lopengl32 -lgdi32 -lwinmm -o GameSaveDemo.exe
+```
+
+For example, replace the placeholders with the paths to raylib's `include` and `lib` directories. Do not commit machine-specific paths or generated executables.
+
+### Persistence tests
+
+```powershell
 g++ -std=c++17 -Wall -Wextra -Wpedantic src/SaveSystem.cpp tests/test_runner.cpp -Iinclude -o test_runner.exe
 ```
 
-## Execution
+## Run
 
-```bash
-# Run CLI demo
-./GameSave.exe
-
-# Run tests
-./test_runner.exe
+```powershell
+.\GameSaveDemo.exe
 ```
 
-## Usage Example
+The demo creates the `saves/` directory when it starts. Save files are stored relative to the executable's working directory.
 
-```cpp
-#include "SaveSystem.hpp"
+## Testing
 
-using namespace GameSave;
+Run the test executable after building it:
 
-SaveSystem saveSystem("saves");
-
-GameState state;
-state.playerName = "Hero";
-state.level = 10;
-state.health = 85;
-state.mana = 50;
-state.experience = 5000;
-state.coins = 1500;
-state.positionX = 100.5f;
-state.positionY = 200.3f;
-state.positionZ = 0.0f;
-state.playtime = std::chrono::seconds(3600);
-
-// Save to slot 1
-auto error = saveSystem.save(1, state);
-if (error == SaveError::None) {
-    // Success
-}
-
-// Load from slot 1
-GameState loadedState;
-error = saveSystem.load(1, loadedState);
-if (error == SaveError::None) {
-    // Use loadedState
-}
-
-// Or use optional for cleaner code
-if (auto opt = saveSystem.load(1)) {
-    // opt.value() contains the state
-}
-
-// List all saves
-auto saves = saveSystem.listSaves();
-for (const auto& save : saves) {
-    std::cout << "Slot " << save.slot << ": " << save.playerName << "\n";
-}
-
-// Check existence
-if (saveSystem.exists(1)) { ... }
-
-// Delete save
-saveSystem.remove(1);
+```powershell
+.\test_runner.exe
 ```
 
-## Save File Format
+The test runner covers save creation, loading, optional loading, missing slots, deletion, multiple slots, invalid slots, corrupted files, string escaping, collectible state round trips, invalid-state rejection, and empty save directories. It creates and removes temporary `test_saves/` and `test_saves_empty/` directories.
 
-Saves are stored as human-readable `.sav` files with key=value pairs:
+## Save Format
 
-```
-version=1
-playerName=Hero
-level=10
-health=85
-mana=50
-experience=5000
-coins=1500
-positionX=100.5
-positionY=200.3
-positionZ=0
-playtime=3600
-saveTime=2026-09-08 15:30:45
-```
+Save files use UTF-8-compatible text lines in the form `key=value`. The current format is version 2 and includes:
 
-Special characters in strings are escaped: `\n`, `\r`, `\t`, `\\`, `\=`, `\;`
+- Format version
+- Player and progression data
+- Health, mana, coins, position, map, and play time
+- Collectible count and per-collectible state
+- Local save timestamp
 
-## Technical Decisions
+Strings are escaped before serialization. The loader validates supported versions, numeric ranges, finite floating-point values, collectible types, and collectible metadata before replacing the destination state.
 
-| Decision | Rationale |
-|----------|-----------|
-| Text-based format | Human-readable, debuggable, no binary parsing issues |
-| `enum class SaveError` | Type-safe, exhaustive error handling, no exceptions needed |
-| `std::optional<GameState> load()` | Modern C++ pattern for nullable returns |
-| `std::filesystem` | Cross-platform directory/file operations |
-| RAII for file streams | Automatic resource management |
-| No `using namespace std` | Explicit, avoids pollution |
-| Separate header/impl | Clean separation, faster compilation |
+See [docs/architecture.md](docs/architecture.md) for the complete save/load flow and component responsibilities.
 
-## Current Limitations
+## Technical Highlights
 
-- No binary format (planned)
-- No checksum/integrity verification (planned)
-- No compression (planned)
-- No atomic writes (planned - currently writes directly to final file)
-- No save versioning/migration (planned)
-- Single-threaded only
-- Maximum 99 slots (arbitrary limit)
+- The core library is independent of the rendering and gameplay layers.
+- `SaveSystem::load(int, GameState&)` parses into a temporary state and assigns it only after validation succeeds.
+- Save format versions are explicit, allowing older files to remain readable while new fields are added.
+- Character scale is derived from the current level rather than accumulated at each level-up.
+- Saved collectibles preserve collection state, position, value, type, and animation parameters.
+- The visual loop is owned by `main.cpp`; loading updates existing game state instead of recreating the render loop.
 
-## Roadmap
+## Limitations
 
-- **v0.2**: Binary format + checksum
-- **v0.3**: Atomic saves (write to temp, rename)
-- **v0.4**: Save versioning + migration
-- **v0.5**: Compression (zlib)
-- **v0.6**: Autosave support
-- **v1.0**: Benchmarks, fuzz testing, full documentation
+- The save format is text-based rather than binary.
+- Save files do not currently include a checksum or cryptographic integrity field.
+- Writes are not atomic; a failed write can leave a partial file.
+- In-memory state replacement after a successful load is atomic.
+- The demo is single-threaded.
+- The test runner is a standalone executable rather than a framework-based suite.
 
 ## License
 
-MIT License - Feel free to use in your projects.
+No license file is included in this repository. Add the intended license before publishing if the project should be reusable by others.

@@ -1,19 +1,40 @@
 # Build outputs
+/build/
+/cmake-build-*/
+/CMakeFiles/
 *.exe
-*.o
+*.dll
+*.lib
+*.a
 *.obj
+*.o
+*.pdb
+*.ilk
+*.res
+*.manifest
 
-# Save files (keep directory but ignore contents)
-saves/*.sav
-test_saves/
-test_saves_empty/
+# Test and runtime data
+/test_saves/
+/test_saves_empty/
+/saves/*.sav
+*.log
 
-# IDE
+# Editor and agent state
+.kilo/
 .vscode/
 .idea/
 *.swp
 *.swo
+*.swn
 
-# OS
-Thumbs.db
+# Operating system files
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+*.pem
+*.key

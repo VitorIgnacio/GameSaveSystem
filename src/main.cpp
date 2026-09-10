@@ -1,218 +1,279 @@
 #include "SaveSystem.hpp"
+#include "Game.hpp"
+#include "UI.hpp"
+#include <raylib.h>
 #include <iostream>
-#include <iomanip>
-#include <limits>
 
 using namespace GameSave;
 
-void printMenu() {
-    std::cout << "\n========== GAME SAVE SYSTEM ==========\n";
-    std::cout << "1. Create Save\n";
-    std::cout << "2. Load Save\n";
-    std::cout << "3. List Saves\n";
-    std::cout << "4. Delete Save\n";
-    std::cout << "5. Check Save Exists\n";
-    std::cout << "6. Exit\n";
-    std::cout << "======================================\n";
-    std::cout << "Choose option: ";
-}
-
-void printSaveInfo(const SaveInfo& info) {
-    auto timeT = std::chrono::system_clock::to_time_t(info.saveTime);
-    std::cout << "  Slot " << info.slot
-              << " | " << info.playerName
-              << " | Level " << info.level
-              << " | " << std::put_time(std::localtime(&timeT), "%Y-%m-%d %H:%M:%S")
-              << "\n";
-}
-
-void printGameState(const GameState& state) {
-    auto timeT = std::chrono::system_clock::to_time_t(state.saveTime);
-    std::cout << "\n--- Save Data ---\n";
-    std::cout << "Player: " << state.playerName << "\n";
-    std::cout << "Level: " << state.level << "\n";
-    std::cout << "Health: " << state.health << "\n";
-    std::cout << "Mana: " << state.mana << "\n";
-    std::cout << "Experience: " << state.experience << "\n";
-    std::cout << "Coins: " << state.coins << "\n";
-    std::cout << "Position: (" << state.positionX << ", "
-              << state.positionY << ", " << state.positionZ << ")\n";
-    std::cout << "Playtime: " << state.playtime.count() << " seconds\n";
-    std::cout << "Saved at: " << std::put_time(std::localtime(&timeT), "%Y-%m-%d %H:%M:%S") << "\n";
-}
-
-int getSlotInput() {
-    int slot;
-    std::cout << "Enter slot number (1-99): ";
-    while (!(std::cin >> slot) || slot <= 0 || slot > 99) {
-        std::cin.clear();
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cout << "Invalid slot. Enter a number between 1 and 99: ";
-    }
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    return slot;
-}
-
-std::string getStringInput(const std::string& prompt) {
-    std::string input;
-    std::cout << prompt;
-    std::getline(std::cin, input);
-    return input;
-}
-
-int getIntInput(const std::string& prompt, int minVal = 0, int maxVal = INT_MAX) {
-    int value;
-    std::cout << prompt;
-    while (!(std::cin >> value) || value < minVal || value > maxVal) {
-        std::cin.clear();
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cout << "Invalid input. " << prompt;
-    }
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    return value;
-}
-
-float getFloatInput(const std::string& prompt) {
-    float value;
-    std::cout << prompt;
-    while (!(std::cin >> value)) {
-        std::cin.clear();
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cout << "Invalid input. " << prompt;
-    }
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    return value;
-}
-
-void createSave(SaveSystem& saveSystem) {
-    std::cout << "\n--- Create New Save ---\n";
-
-    GameState state;
-    state.playerName = getStringInput("Player name: ");
-    if (state.playerName.empty()) {
-        state.playerName = "Player";
-    }
-
-    state.level = getIntInput("Level: ", 1, 100);
-    state.health = getIntInput("Health: ", 0, 9999);
-    state.mana = getIntInput("Mana: ", 0, 9999);
-    state.experience = getIntInput("Experience: ", 0, INT_MAX);
-    state.coins = getIntInput("Coins: ", 0, INT_MAX);
-    state.positionX = getFloatInput("Position X: ");
-    state.positionY = getFloatInput("Position Y: ");
-    state.positionZ = getFloatInput("Position Z: ");
-    state.playtime = std::chrono::seconds(getIntInput("Playtime (seconds): ", 0, INT_MAX));
-
-    int slot = getSlotInput();
-
-    auto error = saveSystem.save(slot, state);
-    if (error == SaveError::None) {
-        std::cout << "\nSave created successfully in slot " << slot << "!\n";
-    } else {
-        std::cout << "\nError creating save: ";
-        switch (error) {
-            case SaveError::InvalidSlot: std::cout << "Invalid slot number"; break;
-            case SaveError::IOError: std::cout << "I/O error"; break;
-            default: std::cout << "Unknown error"; break;
-        }
-        std::cout << "\n";
-    }
-}
-
-void loadSave(SaveSystem& saveSystem) {
-    std::cout << "\n--- Load Save ---\n";
-    int slot = getSlotInput();
-
-    GameState state;
-    auto error = saveSystem.load(slot, state);
-
-    if (error == SaveError::None) {
-        std::cout << "\nSave loaded successfully!\n";
-        printGameState(state);
-    } else {
-        std::cout << "\nError loading save: ";
-        switch (error) {
-            case SaveError::SlotNotFound: std::cout << "Save not found in slot " << slot; break;
-            case SaveError::InvalidSlot: std::cout << "Invalid slot number"; break;
-            case SaveError::IOError: std::cout << "I/O error"; break;
-            case SaveError::CorruptedData: std::cout << "Save data corrupted"; break;
-            case SaveError::InvalidFormat: std::cout << "Invalid save format"; break;
-            default: std::cout << "Unknown error"; break;
-        }
-        std::cout << "\n";
-    }
-}
-
-void listSaves(const SaveSystem& saveSystem) {
-    std::cout << "\n--- Saved Games ---\n";
-    auto saves = saveSystem.listSaves();
-
-    if (saves.empty()) {
-        std::cout << "No saves found.\n";
-    } else {
-        for (const auto& save : saves) {
-            printSaveInfo(save);
-        }
-    }
-}
-
-void deleteSave(SaveSystem& saveSystem) {
-    std::cout << "\n--- Delete Save ---\n";
-    int slot = getSlotInput();
-
-    auto error = saveSystem.remove(slot);
-    if (error == SaveError::None) {
-        std::cout << "\nSave deleted successfully from slot " << slot << "!\n";
-    } else {
-        std::cout << "\nError deleting save: ";
-        switch (error) {
-            case SaveError::SlotNotFound: std::cout << "Save not found in slot " << slot; break;
-            case SaveError::InvalidSlot: std::cout << "Invalid slot number"; break;
-            case SaveError::IOError: std::cout << "I/O error"; break;
-            default: std::cout << "Unknown error"; break;
-        }
-        std::cout << "\n";
-    }
-}
-
-void checkSaveExists(const SaveSystem& saveSystem) {
-    std::cout << "\n--- Check Save Exists ---\n";
-    int slot = getSlotInput();
-
-    if (saveSystem.exists(slot)) {
-        std::cout << "Save exists in slot " << slot << ".\n";
-    } else {
-        std::cout << "No save found in slot " << slot << ".\n";
-    }
-}
-
 int main() {
+    // Window setup
+    const int screenWidth = 800;
+    const int screenHeight = 600;
+
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+    InitWindow(screenWidth, screenHeight, "Game Save System Demo");
+    SetTargetFPS(60);
+
+    // Initialize systems
     SaveSystem saveSystem("saves");
+    Game game(saveSystem);
+    UI ui(screenWidth, screenHeight);
 
-    std::cout << "Welcome to Game Save System!\n";
-    std::cout << "Save directory: " << saveSystem.getSaveDirectory() << "\n";
+    // Set font for floating texts
+    game.setFont(ui.font);
 
-    int choice = 0;
-    while (choice != 6) {
-        printMenu();
-        if (!(std::cin >> choice)) {
-            std::cin.clear();
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-            choice = 0;
-            continue;
+    Menu mainMenu;
+    Menu pauseMenu;
+    Menu saveMenu;
+    Menu loadMenu;
+    Menu settingsMenu;
+
+    // Create menus once at startup
+    ui.createMainMenu(mainMenu);
+    ui.createPauseMenu(pauseMenu);
+    ui.createSettingsMenu(settingsMenu);
+
+    bool exitRequested = false;
+
+    while (!WindowShouldClose() && !exitRequested) {
+        float dt = GetFrameTime();
+
+        // Handle window resize
+        if (IsWindowResized()) {
+            int newWidth = GetScreenWidth();
+            int newHeight = GetScreenHeight();
+
+            // Update UI dimensions
+            ui.screenWidth = newWidth;
+            ui.screenHeight = newHeight;
+
+            // Update Game dimensions
+            game.setScreenSize(newWidth, newHeight);
+
+            // Recreate menus with new dimensions
+            ui.createMainMenu(mainMenu);
+            ui.createPauseMenu(pauseMenu);
+            ui.createSettingsMenu(settingsMenu);
         }
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-        switch (choice) {
-            case 1: createSave(saveSystem); break;
-            case 2: loadSave(saveSystem); break;
-            case 3: listSaves(saveSystem); break;
-            case 4: deleteSave(saveSystem); break;
-            case 5: checkSaveExists(saveSystem); break;
-            case 6: std::cout << "\nGoodbye!\n"; break;
-            default: std::cout << "\nInvalid option. Please try again.\n"; break;
+        // Update mouse hover states for current menu
+        Vector2 mousePos = GetMousePosition();
+        Menu* currentMenu = nullptr;
+
+        switch (game.getCurrentState()) {
+            case Game::State::MainMenu:
+                currentMenu = &mainMenu;
+                break;
+            case Game::State::PauseMenu:
+                currentMenu = &pauseMenu;
+                break;
+            case Game::State::SaveMenu:
+                currentMenu = &saveMenu;
+                break;
+            case Game::State::LoadMenu:
+                currentMenu = &loadMenu;
+                break;
+            case Game::State::SettingsMenu:
+                currentMenu = &settingsMenu;
+                break;
+            default:
+                break;
         }
+
+        if (currentMenu) {
+            for (auto& btn : currentMenu->buttons) {
+                btn.hovered = CheckCollisionPointRec(mousePos, btn.bounds) && btn.enabled;
+                btn.pressed = btn.hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+            }
+        }
+
+        // State machine
+        switch (game.getCurrentState()) {
+            case Game::State::MainMenu: {
+                // Handle button clicks
+                if (ui.isButtonPressed(mainMenu.buttons[0])) { // NEW GAME
+                    game.initNewGame();
+                } else if (ui.isButtonPressed(mainMenu.buttons[1])) { // LOAD GAME
+                    ui.createLoadMenu(loadMenu, game);
+                    game.setCurrentState(Game::State::LoadMenu);
+                } else if (ui.isButtonPressed(mainMenu.buttons[2])) { // SETTINGS
+                    // Update quick save slot text before showing
+                    settingsMenu.buttons[0].text = "QUICK SAVE SLOT: " + std::to_string(game.getQuickSaveSlot());
+                    game.setCurrentState(Game::State::SettingsMenu);
+                } else if (ui.isButtonPressed(mainMenu.buttons[3])) { // EXIT
+                    exitRequested = true;
+                }
+                break;
+            }
+
+            case Game::State::Playing: {
+                game.update(dt);
+
+                // Check for new game request from pause menu
+                if (game.isNewGameRequested()) {
+                    game.initNewGame();
+                    game.setNewGameRequested(false);
+                }
+                break;
+            }
+
+            case Game::State::PauseMenu: {
+                if (ui.isButtonPressed(pauseMenu.buttons[0])) { // RESUME
+                    game.setCurrentState(Game::State::Playing);
+                } else if (ui.isButtonPressed(pauseMenu.buttons[1])) { // SAVE GAME
+                    ui.updateSaveMenuButtons(saveMenu, game);
+                    game.setCurrentState(Game::State::SaveMenu);
+                } else if (ui.isButtonPressed(pauseMenu.buttons[2])) { // LOAD GAME
+                    ui.createLoadMenu(loadMenu, game);
+                    game.setCurrentState(Game::State::LoadMenu);
+                } else if (ui.isButtonPressed(pauseMenu.buttons[3])) { // MAIN MENU
+                    game.setCurrentState(Game::State::MainMenu);
+                } else if (ui.isButtonPressed(pauseMenu.buttons[4])) { // EXIT
+                    exitRequested = true;
+                }
+                break;
+            }
+
+            case Game::State::SaveMenu: {
+                // Check slot buttons (first 5)
+                for (int i = 0; i < 5 && i < static_cast<int>(saveMenu.buttons.size() - 1); ++i) {
+                    if (ui.isButtonPressed(saveMenu.buttons[i])) {
+                        int slot = i + 1;
+                        SaveError error = game.saveGame(slot);
+                        if (error == SaveError::None) {
+                            game.setQuickSaveSlot(slot);
+                            game.setLastLoadedSlot(slot);
+                            game.setCurrentState(Game::State::PauseMenu);
+                        } else {
+                            game.setErrorMessage("Failed to save game: " + std::to_string(static_cast<int>(error)));
+                        }
+                        break;
+                    }
+                }
+
+                // Back button (last)
+                if (ui.isButtonPressed(saveMenu.buttons.back())) {
+                    game.setCurrentState(Game::State::PauseMenu);
+                }
+                break;
+            }
+
+            case Game::State::LoadMenu: {
+                // Check slot buttons (first 5)
+                for (int i = 0; i < 5 && i < static_cast<int>(loadMenu.buttons.size() - 1); ++i) {
+                    if (ui.isButtonPressed(loadMenu.buttons[i])) {
+                        int slot = i + 1;
+                        auto error = game.loadGame(slot);
+                        if (error == SaveError::None) {
+                            game.setLastLoadedSlot(slot);
+                            game.setQuickSaveSlot(slot);
+                            game.setCurrentState(Game::State::Playing);
+                        } else {
+                            game.setErrorMessage("Failed to load save: " + std::to_string(static_cast<int>(error)));
+                        }
+                        break;
+                    }
+                }
+
+                // Back button (last)
+                if (ui.isButtonPressed(loadMenu.buttons.back())) {
+                    game.setCurrentState(Game::State::PauseMenu);
+                }
+                break;
+            }
+
+            case Game::State::SettingsMenu: {
+                if (ui.isButtonPressed(settingsMenu.buttons[0])) { // Quick save slot
+                    // Cycle through slots 1-5
+                    int newSlot = game.getQuickSaveSlot() + 1;
+                    if (newSlot > 5) newSlot = 1;
+                    game.setQuickSaveSlot(newSlot);
+                    settingsMenu.buttons[0].text = "QUICK SAVE SLOT: " + std::to_string(newSlot);
+                } else if (ui.isButtonPressed(settingsMenu.buttons[1])) { // BACK
+                    game.setCurrentState(Game::State::MainMenu);
+                }
+                break;
+            }
+
+            case Game::State::ErrorMessage: {
+                // Check OK button click
+                Vector2 mousePos = GetMousePosition();
+                Rectangle okBtnBounds = {
+                    ui.screenWidth / 2.0f - 50,
+                    ui.screenHeight / 2.0f + 40,
+                    100, 40
+                };
+                if (CheckCollisionPointRec(mousePos, okBtnBounds) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                    game.setCurrentState(Game::State::PauseMenu);
+                }
+                break;
+            }
+        }
+
+        // Render
+        BeginDrawing();
+        ClearBackground({ 20, 20, 25, 255 });
+
+        switch (game.getCurrentState()) {
+            case Game::State::MainMenu:
+                ui.drawMainMenu(mainMenu);
+                break;
+
+            case Game::State::Playing:
+                BeginMode2D(game.getCamera());
+                game.draw();
+                EndMode2D();
+                ui.drawHUD(game);
+                if (!game.getStatusMessage().empty()) {
+                    ui.drawStatusMessage(game.getStatusMessage(), game.getStatusMessageColor(), game.getStatusMessageAlpha());
+                }
+                break;
+
+            case Game::State::PauseMenu:
+                BeginMode2D(game.getCamera());
+                game.draw();
+                EndMode2D();
+                ui.drawHUD(game);
+                ui.drawPauseMenu(pauseMenu);
+                break;
+
+            case Game::State::SaveMenu:
+                BeginMode2D(game.getCamera());
+                game.draw();
+                EndMode2D();
+                ui.drawHUD(game);
+                ui.drawSaveMenu(saveMenu, game);
+                break;
+
+            case Game::State::LoadMenu:
+                BeginMode2D(game.getCamera());
+                game.draw();
+                EndMode2D();
+                ui.drawHUD(game);
+                ui.drawLoadMenu(loadMenu, game);
+                break;
+
+            case Game::State::SettingsMenu:
+                BeginMode2D(game.getCamera());
+                game.draw();
+                EndMode2D();
+                ui.drawHUD(game);
+                ui.drawSettingsMenu(settingsMenu, game);
+                break;
+
+            case Game::State::ErrorMessage:
+                BeginMode2D(game.getCamera());
+                game.draw();
+                EndMode2D();
+                ui.drawHUD(game);
+                ui.drawErrorMessage(game.getErrorMessage());
+                break;
+        }
+
+        EndDrawing();
     }
 
+    CloseWindow();
     return 0;
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GameState.hpp"
 #include <string>
 #include <vector>
 #include <optional>
@@ -8,20 +9,6 @@
 #include <cstdint>
 
 namespace GameSave {
-
-struct GameState {
-    std::string playerName;
-    int level = 1;
-    int health = 100;
-    int mana = 50;
-    int experience = 0;
-    int coins = 0;
-    float positionX = 0.0f;
-    float positionY = 0.0f;
-    float positionZ = 0.0f;
-    std::chrono::seconds playtime{0};
-    std::chrono::system_clock::time_point saveTime{};
-};
 
 struct SaveInfo {
     int slot;
