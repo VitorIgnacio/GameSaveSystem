@@ -38,3 +38,7 @@ desktop.ini
 !.env.example
 *.pem
 *.key
+
+# Release artifacts
+release/
+*.zip
